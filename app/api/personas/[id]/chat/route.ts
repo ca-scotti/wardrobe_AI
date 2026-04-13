@@ -350,6 +350,7 @@ ${wishlistItems.length === 0 ? 'None' : wishlistItems.map(i => `- ${i.name} (${i
 
   let assistantText = '';
   let looksChanged = false;
+  let itemsChanged = false;
 
   try {
     // Agentic loop — runs until Claude produces a text response (no more tool calls)
@@ -369,6 +370,7 @@ ${wishlistItems.length === 0 ? 'None' : wishlistItems.map(i => `- ${i.name} (${i
 
         const toolResults: Anthropic.ToolResultBlockParam[] = toolUseBlocks.map(toolUse => {
           if (['add_look', 'delete_look'].includes(toolUse.name)) looksChanged = true;
+          if (['add_item', 'edit_item', 'delete_item'].includes(toolUse.name)) itemsChanged = true;
 
           const result = executeTool(
             toolUse.name,
@@ -430,6 +432,7 @@ ${wishlistItems.length === 0 ? 'None' : wishlistItems.map(i => `- ${i.name} (${i
       parsed,
       raw: assistantText,
       looks_changed: looksChanged,
+      items_changed: itemsChanged,
     });
   } catch (error) {
     console.error('Claude API error:', error);

@@ -266,6 +266,7 @@ export default function PersonaPage() {
       if (data.error) {
         setMessages(m => [...m, { role: 'assistant', content: `Something went wrong: ${data.error}. Please check that your ANTHROPIC_API_KEY is set in .env.local.` }]);
       } else {
+        if (data.items_changed) refreshItems();
         if (data.looks_changed) refreshLooks();
         // Compute the index the new assistant message will have
         const newMsgIdx = messages.length + 1; // +1 for user msg already added above
@@ -477,6 +478,11 @@ export default function PersonaPage() {
   const refreshLooks = async () => {
     const res = await fetch(`/api/personas/${id}/generate-looks`);
     if (res.ok) setLooks(await res.json());
+  };
+
+  const refreshItems = async () => {
+    const res = await fetch(`/api/personas/${id}/items`);
+    if (res.ok) setItems(await res.json());
   };
 
   const downloadExcel = () => {
