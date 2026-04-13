@@ -52,17 +52,18 @@ function parseAndValidateLooks(
     });
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const db = getDb();
   const body = await req.json().catch(() => ({})) as { newItemId?: string };
   const { newItemId } = body;
 
-  const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(params.id) as Record<string, string> | undefined;
+  const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(id) as Record<string, string> | undefined;
   if (!persona) return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
 
   const items = db.prepare(
     'SELECT * FROM wardrobe_items WHERE persona_id = ? AND is_owned = 1 ORDER BY category'
-  ).all(params.id) as Array<Record<string, unknown>>;
+  ).all(id) as Array<Record<string, unknown>>;
 
   if (items.length < 3) {
     return NextResponse.json({ error: 'Need at least 3 owned items to generate looks' }, { status: 400 });
@@ -135,10 +136,10 @@ Valid IDs: ${[...validIdSet].join(', ')}`;
         db.prepare(`
           INSERT INTO looks (id, persona_id, name, description, occasion, temperature, item_ids, is_approved)
           VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-        `).run(id, params.id, look.name, look.description, look.occasion, look.temperature, JSON.stringify(look.item_ids));
+        `).run(id, id, look.name, look.description, look.occasion, look.temperature, JSON.stringify(look.item_ids));
       }
 
-      const allLooks = db.prepare('SELECT * FROM looks WHERE persona_id = ? ORDER BY created_at DESC').all(params.id);
+      const allLooks = db.prepare('SELECT * FROM looks WHERE persona_id = ? ORDER BY created_at DESC').all(id);
       return NextResponse.json({ looks: allLooks });
     } catch (error) {
       console.error('Incremental look generation error:', error);
@@ -187,17 +188,17 @@ Valid IDs: ${[...validIdSet].join(', ')}`;
     const looks = parseAndValidateLooks(text, itemsById, validIdSet);
 
     // Only delete pending looks on full regen — keep what the user already approved
-    db.prepare('DELETE FROM looks WHERE persona_id = ? AND is_approved = 0').run(params.id);
+    db.prepare('DELETE FROM looks WHERE persona_id = ? AND is_approved = 0').run(id);
 
     for (const look of looks) {
       const id = uuidv4();
       db.prepare(`
         INSERT INTO looks (id, persona_id, name, description, occasion, temperature, item_ids, is_approved)
         VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-      `).run(id, params.id, look.name, look.description, look.occasion, look.temperature, JSON.stringify(look.item_ids));
+      `).run(id, id, look.name, look.description, look.occasion, look.temperature, JSON.stringify(look.item_ids));
     }
 
-    const allLooks = db.prepare('SELECT * FROM looks WHERE persona_id = ? ORDER BY created_at DESC').all(params.id);
+    const allLooks = db.prepare('SELECT * FROM looks WHERE persona_id = ? ORDER BY created_at DESC').all(id);
     return NextResponse.json({ looks: allLooks });
   } catch (error) {
     console.error('Look generation error:', error);
@@ -205,8 +206,9 @@ Valid IDs: ${[...validIdSet].join(', ')}`;
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const db = getDb();
-  const looks = db.prepare('SELECT * FROM looks WHERE persona_id = ? ORDER BY created_at DESC').all(params.id);
+  const looks = db.prepare('SELECT * FROM looks WHERE persona_id = ? ORDER BY created_at DESC').all(id);
   return NextResponse.json(looks);
 }

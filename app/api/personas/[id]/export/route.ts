@@ -2,19 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import * as XLSX from 'xlsx';
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const db = getDb();
 
-  const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(params.id) as Record<string, string> | undefined;
+  const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(id) as Record<string, string> | undefined;
   if (!persona) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const items = db.prepare(
     'SELECT * FROM wardrobe_items WHERE persona_id = ? ORDER BY category, name'
-  ).all(params.id) as Array<Record<string, unknown>>;
+  ).all(id) as Array<Record<string, unknown>>;
 
   const looks = db.prepare(
     'SELECT * FROM looks WHERE persona_id = ? ORDER BY occasion, name'
-  ).all(params.id) as Array<Record<string, unknown>>;
+  ).all(id) as Array<Record<string, unknown>>;
 
   const itemsById = new Map(items.map(i => [i.id as string, i]));
 
@@ -22,8 +23,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const looksRows = looks.map(look => {
     const itemIds: string[] = JSON.parse(look.item_ids as string);
     const itemNames = itemIds
-      .map(id => {
-        const item = itemsById.get(id);
+      .map(itemId => {
+        const item = itemsById.get(itemId);
         return item ? (item.name as string) : null;
       })
       .filter(Boolean)
@@ -53,7 +54,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const wb = XLSX.utils.book_new();
 
   const wsLooks = XLSX.utils.json_to_sheet(looksRows);
-  // Column widths
   wsLooks['!cols'] = [
     { wch: 28 }, // Name
     { wch: 10 }, // Occasion

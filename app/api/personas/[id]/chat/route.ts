@@ -196,29 +196,31 @@ function executeTool(
 
 // ── Route handlers ───────────────────────────────────────────────────────────
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const db = getDb();
   const conv = db.prepare(
     'SELECT * FROM build_conversations WHERE persona_id = ?'
-  ).get(params.id) as { messages: string } | undefined;
+  ).get(id) as { messages: string } | undefined;
   return NextResponse.json({ messages: conv ? JSON.parse(conv.messages) : [] });
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const db = getDb();
   const body = await req.json();
   const { userMessage, imageBase64, mimeType } = body;
 
-  const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(params.id) as Record<string, string> | undefined;
+  const persona = db.prepare('SELECT * FROM personas WHERE id = ?').get(id) as Record<string, string> | undefined;
   if (!persona) return NextResponse.json({ error: 'Persona not found' }, { status: 404 });
 
   const items = db.prepare(
     'SELECT * FROM wardrobe_items WHERE persona_id = ? ORDER BY created_at ASC'
-  ).all(params.id) as Array<Record<string, unknown>>;
+  ).all(id) as Array<Record<string, unknown>>;
 
   const convRecord = db.prepare(
     'SELECT * FROM build_conversations WHERE persona_id = ?'
-  ).get(params.id) as { messages: string } | undefined;
+  ).get(id) as { messages: string } | undefined;
   const storedMessages: Array<{ role: string; content: unknown }> = convRecord
     ? JSON.parse(convRecord.messages)
     : [];
@@ -288,7 +290,7 @@ ${wishlistItems.length === 0 ? 'None' : wishlistItems.map(i => `- ${i.name} (${i
             toolUse.name,
             toolUse.input as Record<string, unknown>,
             db,
-            params.id,
+            id,
             ownedItems,
           );
 
@@ -332,11 +334,11 @@ ${wishlistItems.length === 0 ? 'None' : wishlistItems.map(i => `- ${i.name} (${i
     if (convRecord) {
       db.prepare(
         'UPDATE build_conversations SET messages = ?, updated_at = CURRENT_TIMESTAMP WHERE persona_id = ?'
-      ).run(JSON.stringify(updatedMessages), params.id);
+      ).run(JSON.stringify(updatedMessages), id);
     } else {
       db.prepare(
         'INSERT INTO build_conversations (id, persona_id, messages) VALUES (?, ?, ?)'
-      ).run(uuidv4(), params.id, JSON.stringify(updatedMessages));
+      ).run(uuidv4(), id, JSON.stringify(updatedMessages));
     }
 
     return NextResponse.json({
@@ -351,8 +353,9 @@ ${wishlistItems.length === 0 ? 'None' : wishlistItems.map(i => `- ${i.name} (${i
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const db = getDb();
-  db.prepare('DELETE FROM build_conversations WHERE persona_id = ?').run(params.id);
+  db.prepare('DELETE FROM build_conversations WHERE persona_id = ?').run(id);
   return NextResponse.json({ success: true });
 }
