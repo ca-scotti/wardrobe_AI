@@ -1,8 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+export const anthropic = new Anthropic();
 
 export const WARDROBE_SYSTEM_PROMPT = `You are a personal stylist and wardrobe consultant AI. Your role is to help users build a cohesive, intentional wardrobe for their persona from scratch.
 
