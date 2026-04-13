@@ -117,10 +117,42 @@ function tryParse(text: string): ParsedAI | undefined {
   return undefined;
 }
 
-function displayText(msg: Message) {
-  if (msg.parsed?.message) return msg.parsed.message;
-  const content = msg.content ?? '';
-  return content.replace(/\{[\s\S]*\}/, '').trim() || content;
+function renderInline(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) return <strong key={i}>{part.slice(2, -2)}</strong>;
+    if (part.startsWith('*') && part.endsWith('*')) return <em key={i}>{part.slice(1, -1)}</em>;
+    return part;
+  });
+}
+
+function renderMarkdown(text: string): React.ReactNode {
+  const paragraphs = text.split(/\n\n+/);
+  return paragraphs.map((para, pi) => {
+    const lines = para.split('\n');
+    if (lines.some(l => /^[-•*]\s/.test(l))) {
+      return (
+        <ul key={pi} className="list-disc list-inside space-y-0.5 my-1 pl-1">
+          {lines.filter(l => l.trim()).map((line, li) => (
+            <li key={li}>{renderInline(line.replace(/^[-•*]\s+/, ''))}</li>
+          ))}
+        </ul>
+      );
+    }
+    return (
+      <p key={pi} className={pi > 0 ? 'mt-2' : undefined}>
+        {lines.map((line, li) => (
+          <span key={li}>{renderInline(line)}{li < lines.length - 1 && <br />}</span>
+        ))}
+      </p>
+    );
+  });
+}
+
+function displayText(msg: Message): React.ReactNode {
+  const raw = msg.parsed?.message ?? msg.content ?? '';
+  const text = msg.parsed?.message ? raw : (raw.replace(/\{[\s\S]*\}/, '').trim() || raw);
+  return renderMarkdown(text);
 }
 
 export default function PersonaPage() {
@@ -528,10 +560,10 @@ export default function PersonaPage() {
   const filteredItems = wardrobeFilter === 'owned' ? owned : wardrobeFilter === 'wishlist' ? wishlist : items;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#faf6f2' }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#faf6f2' }}>
 
       {/* Top nav */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-6 py-4"
+      <header className="flex-shrink-0 flex items-center justify-between px-6 py-4"
         style={{ background: 'rgba(250,246,242,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid #f0e8e0' }}>
         <div className="flex items-center gap-4">
           <Link href="/" className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-60" style={{ color: '#8a8078' }}>
@@ -558,7 +590,7 @@ export default function PersonaPage() {
       </header>
 
       {/* Tab bar */}
-      <div className="flex" style={{ borderBottom: '1px solid #f0e8e0', background: 'rgba(250,246,242,0.9)' }}>
+      <div className="flex flex-shrink-0" style={{ borderBottom: '1px solid #f0e8e0', background: 'rgba(250,246,242,0.9)' }}>
         {([
           { id: 'build',    label: 'Build Wardrobe', icon: '🏗️' },
           { id: 'wardrobe', label: `Wardrobe (${items.length})`, icon: '👗' },
@@ -575,9 +607,12 @@ export default function PersonaPage() {
         ))}
       </div>
 
+      {/* Tab content area */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+
       {/* ── BUILD TAB ── */}
       {tab === 'build' && (
-        <div className="flex flex-1 gap-0 overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+        <div className="flex flex-1 gap-0 overflow-hidden">
 
           {/* Chat column */}
           <div className="flex-1 flex flex-col min-w-0">
@@ -913,7 +948,7 @@ export default function PersonaPage() {
 
       {/* ── WARDROBE TAB ── */}
       {tab === 'wardrobe' && (
-        <div className="flex-1 px-6 py-6 overflow-auto">
+        <div className="flex-1 h-full px-6 py-6 overflow-auto">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="text-5xl mb-4">🧺</div>
@@ -1151,7 +1186,7 @@ export default function PersonaPage() {
         };
 
         return (
-          <div className="flex-1 px-6 py-6 overflow-auto">
+          <div className="flex-1 h-full px-6 py-6 overflow-auto">
             {looksLoading ? (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin mb-4" style={{ borderColor: '#c9967f', borderTopColor: 'transparent' }} />
@@ -1320,6 +1355,8 @@ export default function PersonaPage() {
           </div>
         );
       })()}
+
+      </div>{/* end tab content area */}
 
       {/* Hidden inputs */}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => handleFileSelect(e)} />
