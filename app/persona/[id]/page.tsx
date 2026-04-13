@@ -178,7 +178,6 @@ export default function PersonaPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [uploadingItemId, setUploadingItemId] = useState<string | null>(null);
-  const [generatingImageId, setGeneratingImageId] = useState<string | null>(null);
   // Per-option reference images: key is "msgIdx-optIdx"
   const [refImages, setRefImages] = useState<Record<string, ReferenceImage[]>>({});
   const [refImagesLoading, setRefImagesLoading] = useState<Record<string, boolean>>({});
@@ -446,26 +445,6 @@ export default function PersonaPage() {
     }
   };
 
-  const generateItemAIImage = async (item: WardrobeItem) => {
-    setGeneratingImageId(item.id);
-    try {
-      const r = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: item.name, colors: item.colors, category: item.category, description: item.description }),
-      });
-      if (!r.ok) return;
-      const { path: imagePath } = await r.json();
-      await fetch(`/api/personas/${id}/items`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: item.id, image_path: imagePath }),
-      });
-      setItems(p => p.map(i => i.id === item.id ? { ...i, image_path: imagePath } : i));
-    } finally {
-      setGeneratingImageId(null);
-    }
-  };
 
   const generateLooks = async () => {
     setLooksLoading(true);
@@ -1017,17 +996,16 @@ export default function PersonaPage() {
                             </div>
                           ) : (() => {
                             const { bg, fg } = getItemBg(item);
-                            const isGenerating = generatingImageId === item.id;
                             const isUploading = uploadingItemId === item.id;
                             return (
                               <div className="h-28 flex flex-col items-center justify-center gap-1 relative overflow-hidden group"
                                 style={{ background: bg }}>
                                 <div className="absolute inset-0 opacity-10"
                                   style={{ backgroundImage: 'radial-gradient(circle at 30% 30%, white 1px, transparent 1px)', backgroundSize: '12px 12px' }} />
-                                {isGenerating || isUploading ? (
+                                {isUploading ? (
                                   <div className="flex flex-col items-center gap-2 relative">
                                     <div className="w-6 h-6 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                                    <span className="text-xs text-white font-medium">{isGenerating ? 'Generating…' : 'Uploading…'}</span>
+                                    <span className="text-xs text-white font-medium">Uploading…</span>
                                   </div>
                                 ) : (
                                   <>
@@ -1037,18 +1015,13 @@ export default function PersonaPage() {
                                         {item.colors.split(',')[0].trim()}
                                       </span>
                                     )}
-                                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                       <label className="cursor-pointer flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm"
                                         style={{ background: 'rgba(255,255,255,0.92)', color: '#2c2c2c' }}>
                                         📷 Upload
                                         <input type="file" accept="image/*" className="hidden"
                                           onChange={e => { const f = e.target.files?.[0]; if (f) handleItemImageUpload(f, item.id); e.target.value = ''; }} />
                                       </label>
-                                      <button onClick={() => generateItemAIImage(item)}
-                                        className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm"
-                                        style={{ background: 'rgba(255,255,255,0.92)', color: '#7c5cbf' }}>
-                                        ✨ AI Generate
-                                      </button>
                                     </div>
                                   </>
                                 )}
