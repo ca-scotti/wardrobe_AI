@@ -280,8 +280,9 @@ export default function PersonaPage() {
         if (options?.length) {
           options.forEach((opt: ItemOption, oi: number) => {
             // Build a search query — use provided one or fall back to item description
-            const query = opt.search_query
-              || `${(opt.colors?.[0] || '')} ${opt.item_type || ''} ${opt.category || ''} women fashion outfit`.trim();
+            const baseQuery = opt.search_query
+              || `${(opt.colors?.[0] || '')} ${opt.item_type || ''} ${opt.category || ''} fashion outfit`.trim();
+            const query = baseQuery.toLowerCase().includes('women') ? baseQuery : `${baseQuery} women`;
             if (!query.trim()) return;
             const key = `${newMsgIdx}-${oi}`;
             setRefImagesLoading(l => ({ ...l, [key]: true }));
@@ -453,7 +454,7 @@ export default function PersonaPage() {
     // Auto-source Unsplash images for newly added items that have no image
     const noImage = freshItems.filter(i => !i.image_path);
     for (const item of noImage) {
-      const query = [item.colors, item.name, item.category, 'fashion clothing'].filter(Boolean).join(' ');
+      const query = [item.colors, item.name, item.category, 'women fashion'].filter(Boolean).join(' ');
       fetch('/api/image-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
