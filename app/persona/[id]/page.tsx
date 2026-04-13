@@ -305,7 +305,7 @@ export default function PersonaPage() {
   };
 
   const startBuild = () => {
-    const msg = `Hi! I'm ${persona?.name}. My style is ${persona?.style_vibe}, I dress for ${persona?.occasions}, my palette is ${persona?.color_palette}. ${persona?.body_notes ? 'Body notes: ' + persona.body_notes : ''} Please recommend my very first wardrobe piece to start from scratch!`;
+    const msg = `Hi! I'm ${persona?.name}. My style is ${persona?.style_vibe}, I dress for ${persona?.occasions}, my palette is ${persona?.color_palette}. ${persona?.body_notes ? 'Body notes: ' + persona.body_notes + '.' : ''} What can you help me with?`;
     sendMsg(msg);
   };
 
