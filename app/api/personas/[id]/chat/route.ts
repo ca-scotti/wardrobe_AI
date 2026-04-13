@@ -9,6 +9,51 @@ import type { Database } from 'better-sqlite3';
 
 const LOOK_TOOLS: Anthropic.Tool[] = [
   {
+    name: 'add_item',
+    description: 'Add a clothing or accessory item to the wardrobe. Use this whenever the user confirms they own an item or wants to add one. Returns the new item ID which can immediately be used in add_look.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Descriptive name, e.g. "white linen t-shirt"' },
+        category: {
+          type: 'string',
+          enum: ['tops', 'bottoms', 'dresses', 'outerwear', 'shoes', 'bags', 'accessories', 'jewelry'],
+        },
+        subcategory: { type: 'string', description: 'Optional subcategory, e.g. "ankle boots", "blazer"' },
+        colors: { type: 'string', description: 'Color(s), e.g. "white" or "navy, white stripe"' },
+        description: { type: 'string', description: 'Brief style note' },
+        is_owned: { type: 'boolean', description: 'true if the user already owns it, false for wishlist' },
+      },
+      required: ['name', 'category', 'is_owned'],
+    },
+  },
+  {
+    name: 'edit_item',
+    description: 'Update details of an existing wardrobe item. Use item IDs from the wardrobe context.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        item_id: { type: 'string', description: 'ID of the item to edit' },
+        name: { type: 'string', description: 'New name (optional)' },
+        colors: { type: 'string', description: 'New color(s) (optional)' },
+        description: { type: 'string', description: 'New description (optional)' },
+        notes: { type: 'string', description: 'New notes (optional)' },
+      },
+      required: ['item_id'],
+    },
+  },
+  {
+    name: 'delete_item',
+    description: 'Remove an item from the wardrobe. Use item IDs from the wardrobe context.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        item_id: { type: 'string', description: 'ID of the item to delete' },
+      },
+      required: ['item_id'],
+    },
+  },
+  {
     name: 'get_looks',
     description: 'Get all looks for this wardrobe with full item details. Use this to list, review, or audit looks before making changes.',
     input_schema: {
@@ -77,6 +122,45 @@ function executeTool(
   const validIdSet = new Set(items.map(i => i.id as string));
 
   switch (toolName) {
+    case 'add_item': {
+      const { name, category, subcategory, colors, description, is_owned } = toolInput as {
+        name: string; category: string; subcategory?: string;
+        colors?: string; description?: string; is_owned: boolean;
+      };
+      const itemId = uuidv4();
+      db.prepare(`
+        INSERT INTO wardrobe_items
+          (id, persona_id, name, category, subcategory, colors, description, image_path, is_owned, is_key_piece, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(itemId, personaId, name, category, subcategory || '', colors || '', description || '', '', is_owned ? 1 : 0, 0, '');
+      return { success: true, item_id: itemId, message: `Added "${name}" to the wardrobe.` };
+    }
+
+    case 'edit_item': {
+      const { item_id, name, colors, description, notes } = toolInput as {
+        item_id: string; name?: string; colors?: string; description?: string; notes?: string;
+      };
+      const item = db.prepare('SELECT * FROM wardrobe_items WHERE id = ? AND persona_id = ?').get(item_id, personaId) as Record<string, unknown> | undefined;
+      if (!item) return { error: `Item with ID "${item_id}" not found.` };
+      db.prepare(`
+        UPDATE wardrobe_items SET
+          name = COALESCE(?, name),
+          colors = COALESCE(?, colors),
+          description = COALESCE(?, description),
+          notes = COALESCE(?, notes)
+        WHERE id = ? AND persona_id = ?
+      `).run(name || null, colors || null, description || null, notes || null, item_id, personaId);
+      return { success: true, message: `Updated "${name || item.name}".` };
+    }
+
+    case 'delete_item': {
+      const { item_id } = toolInput as { item_id: string };
+      const item = db.prepare('SELECT * FROM wardrobe_items WHERE id = ? AND persona_id = ?').get(item_id, personaId) as Record<string, unknown> | undefined;
+      if (!item) return { error: `Item with ID "${item_id}" not found.` };
+      db.prepare('DELETE FROM wardrobe_items WHERE id = ? AND persona_id = ?').run(item_id, personaId);
+      return { success: true, message: `Deleted "${item.name}" from the wardrobe.` };
+    }
+
     case 'get_looks': {
       const occasion = toolInput.occasion as string | undefined;
       const looksRaw = (occasion && occasion !== 'all')
