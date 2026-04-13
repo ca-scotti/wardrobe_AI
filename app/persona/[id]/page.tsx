@@ -311,22 +311,7 @@ export default function PersonaPage() {
 
   const addItemAndContinue = async (opt: ItemOption, owned: boolean, selectedImgUrl?: string) => {
     const itemName = buildItemName(opt);
-    let imagePath = '';
-
-    // If a reference image was selected, download and save it
-    if (selectedImgUrl) {
-      try {
-        const proxyRes = await fetch('/api/proxy-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: selectedImgUrl }),
-        });
-        if (proxyRes.ok) {
-          const d = await proxyRes.json();
-          imagePath = d.path || '';
-        }
-      } catch { /* image fetch failed, continue without */ }
-    }
+    const imagePath = selectedImgUrl || '';
 
     const res = await fetch(`/api/personas/${id}/items`, {
       method: 'POST',
@@ -461,7 +446,32 @@ export default function PersonaPage() {
 
   const refreshItems = async () => {
     const res = await fetch(`/api/personas/${id}/items`);
-    if (res.ok) setItems(await res.json());
+    if (!res.ok) return;
+    const freshItems: WardrobeItem[] = await res.json();
+    setItems(freshItems);
+
+    // Auto-source Unsplash images for newly added items that have no image
+    const noImage = freshItems.filter(i => !i.image_path);
+    for (const item of noImage) {
+      const query = [item.colors, item.name, item.category, 'fashion clothing'].filter(Boolean).join(' ');
+      fetch('/api/image-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(async data => {
+          const url = data?.images?.[0]?.url;
+          if (!url) return;
+          await fetch(`/api/personas/${id}/items`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemId: item.id, image_path: url }),
+          });
+          setItems(p => p.map(i => i.id === item.id ? { ...i, image_path: url } : i));
+        })
+        .catch(() => {});
+    }
   };
 
   const downloadExcel = () => {
